@@ -1,35 +1,32 @@
 // =====================================================================
 // CONFIGURAÇÃO — substitua SEU_ID_AQUI pelo ID da sua planilha do Google
-// Para encontrar o ID: abra a planilha e copie o trecho entre /d/ e /edit na URL
-// Exemplo: docs.google.com/spreadsheets/d/ESTE_TRECHO_AQUI/edit
 // =====================================================================
-const SPREADSHEET_ID = "1eDRyR5r-NsSHOoYwCbKnbidYkq8xw1um6ImVzlhRY2k";
+const SPREADSHEET_ID = "1iaJWII2fOR8ML9ZTpy5qL9nbkbZU02raYT6AqVmx-BE";
 
-// Mapeamento das turmas para os nomes das abas (devem ser exatos)
 const TURMAS = {
-  "Turma104": "Turma104",
-  "Turma103": "Turma103",
-  "Turma201": "Turma201"
+  "CEDUP": "CEDUP",
+"102": "102",
+"103": "103",
+"104": "104",
+"201": "201",
+"202": "202",
+"203": "203",
+"204": "204",
+"301": "301",
+"302": "302",
+"303": "303",
+"304": "304"
 };
-
-const PONTUACAO_MINIMA = 5;
 
 // Cache dos dados para não buscar toda hora
 let dadosCache = {};
 
-// -----------------------------------------------------------------------
-// Monta a URL CSV para uma aba específica pelo nome
-// O gid (ID da aba) é buscado automaticamente via URL de exportação por nome
-// -----------------------------------------------------------------------
 function urlCSV(nomeDaAba) {
   const abaEncoded = encodeURIComponent(nomeDaAba);
   const urlOriginal = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${abaEncoded}&t=${Date.now()}`;
   return `https://corsproxy.io/?url=${encodeURIComponent(urlOriginal)}`;
 }
 
-// -----------------------------------------------------------------------
-// Faz o parse do CSV considerando campos entre aspas (padrão do Google)
-// -----------------------------------------------------------------------
 function parseCSV(texto) {
   const linhas = [];
   const rows = texto.trim().split("\n");
@@ -54,12 +51,7 @@ function parseCSV(texto) {
   return linhas;
 }
 
-// -----------------------------------------------------------------------
-// Busca e processa os dados de uma turma
-// Retorna array de objetos { nome, pontuacao }
-// -----------------------------------------------------------------------
 async function buscarDadosTurma(turmaKey) {
-  // Retorna do cache se já buscou
   if (dadosCache[turmaKey]) return dadosCache[turmaKey];
 
   const url = urlCSV(TURMAS[turmaKey]);
@@ -68,53 +60,40 @@ async function buscarDadosTurma(turmaKey) {
 
   const texto = await response.text();
   const linhas = parseCSV(texto);
-  console.log("Primeiras 5 linhas do CSV:", linhas.slice(0, 5));
 
-// Encontra a linha de cabeçalho (linha com as datas, ex: '20/02')
-// Os dados dos alunos começam na linha seguinte
-let linhaCabecalho = -1;
-
-for (let i = 0; i < linhas.length; i++) {
-  const linha = linhas[i];
-  // A linha de cabeçalho contém o número da turma (ex: '103', '104', '201')
-  const temTurma = linha.some(c => /^\d{3}$/.test(c.toString().trim()));
-  if (temTurma) {
-    linhaCabecalho = i;
-    break;
+  // Encontra a linha de cabeçalho (linha com o número da turma, ex: '103', '201')
+  let linhaCabecalho = -1;
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i];
+    const temTurma = linha.some(c => /^\d{3}$/.test(c.toString().trim()));
+    if (temTurma) {
+      linhaCabecalho = i;
+      break;
+    }
   }
-}
 
-if (linhaCabecalho === -1) throw new Error("Estrutura da planilha não reconhecida.");
+  if (linhaCabecalho === -1) throw new Error("Estrutura da planilha não reconhecida.");
 
-colNome = 2;      // Nome do aluno está sempre na coluna 2
-colTotal = 9;     // TOTAL está sempre na penúltima coluna (índice 9)
+  const colNome = 2;   // Nome do aluno
+  const colTotal = 9;  // Coluna TOTAL (penúltima, antes de ASSUNTOS)
 
-  // Processa os alunos (linhas após o cabeçalho)
   const alunos = [];
   for (let i = linhaCabecalho + 1; i < linhas.length; i++) {
     const linha = linhas[i];
     const nome = linha[colNome]?.toString().trim();
     const totalRaw = linha[colTotal]?.toString().trim();
 
-    // Ignora linhas vazias ou sem nome
     if (!nome || nome === "") continue;
 
-    // "F" (falta) vira 0, senão converte para número
     const pontuacao = (totalRaw === "F" || totalRaw === "f") ? 0 : parseFloat(totalRaw) || 0;
-
     alunos.push({ nome, pontuacao });
   }
 
-  // Ordena alfabeticamente
   alunos.sort((a, b) => a.nome.localeCompare(b.nome));
-
   dadosCache[turmaKey] = alunos;
   return alunos;
 }
 
-// -----------------------------------------------------------------------
-// Chamado ao trocar a turma — carrega a lista de alunos no <select>
-// -----------------------------------------------------------------------
 async function carregarAlunos() {
   const turmaKey = document.getElementById("turma").value;
   const alunoWrapper = document.getElementById("alunoWrapper");
@@ -122,7 +101,6 @@ async function carregarAlunos() {
   const loading = document.getElementById("loading");
   const resultado = document.getElementById("resultado");
 
-  // Limpa resultado anterior
   resultado.style.display = "none";
   resultado.className = "";
   resultado.innerHTML = "";
@@ -154,13 +132,19 @@ async function carregarAlunos() {
   }
 }
 
-// -----------------------------------------------------------------------
-// Chamado ao clicar em "Verificar Pausa"
-// -----------------------------------------------------------------------
 async function verificarPausa() {
   const turmaKey = document.getElementById("turma").value;
   const nomeAluno = document.getElementById("aluno").value;
   const resultado = document.getElementById("resultado");
+
+  // Lê o mínimo configurado pelo professor
+  const minimoInput = parseFloat(document.getElementById("minimo").value);
+  if (isNaN(minimoInput) || minimoInput < 0) {
+    resultado.innerHTML = "⚠️ Por favor, defina uma pontuação mínima válida.";
+    resultado.className = "erro";
+    resultado.style.display = "block";
+    return;
+  }
 
   if (!turmaKey || !nomeAluno) {
     resultado.innerHTML = "Por favor, selecione a turma e o aluno.";
@@ -170,10 +154,8 @@ async function verificarPausa() {
   }
 
   try {
-    // Limpa cache da turma para buscar dados frescos a cada verificação
     delete dadosCache[turmaKey];
     const alunos = await buscarDadosTurma(turmaKey);
-
     const aluno = alunos.find(a => a.nome === nomeAluno);
 
     if (!aluno) {
@@ -183,17 +165,17 @@ async function verificarPausa() {
       return;
     }
 
-    if (aluno.pontuacao >= PONTUACAO_MINIMA) {
-      resultado.innerHTML = `✅ <strong>${aluno.nome}</strong> pode usar a pausa.<br><span style="font-size:0.9rem;opacity:0.8">Pontuação: ${aluno.pontuacao} pts</span>`;
+    if (aluno.pontuacao >= minimoInput) {
+      resultado.innerHTML = `✅ <strong>${aluno.nome}</strong> pode usar a pausa.<br><span style="font-size:0.9rem;opacity:0.8">Pontuação: ${aluno.pontuacao} pts (mínimo: ${minimoInput})</span>`;
       resultado.className = "aprovado";
     } else {
-      resultado.innerHTML = `❌ <strong>${aluno.nome}</strong> não pode usar a pausa.<br><span style="font-size:0.9rem;opacity:0.8">Pontuação: ${aluno.pontuacao} pts (mínimo: ${PONTUACAO_MINIMA})</span>`;
+      resultado.innerHTML = `❌ <strong>${aluno.nome}</strong> não pode usar a pausa.<br><span style="font-size:0.9rem;opacity:0.8">Pontuação: ${aluno.pontuacao} pts (mínimo: ${minimoInput})</span>`;
       resultado.className = "reprovado";
     }
 
     resultado.style.display = "block";
 
-    // Atualiza o select com os dados frescos
+    // Atualiza o select com dados frescos mantendo o aluno selecionado
     const selectAluno = document.getElementById("aluno");
     selectAluno.innerHTML = '<option value="">— Selecione o aluno —</option>';
     alunos.forEach(a => {
