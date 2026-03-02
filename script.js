@@ -4,7 +4,7 @@
 const SPREADSHEET_ID = "1iaJWII2fOR8ML9ZTpy5qL9nbkbZU02raYT6AqVmx-BE";
 
 const TURMAS = {
-  "CEDUP": "CEDUP",
+  "515": "515",
 "102": "102",
 "103": "103",
 "104": "104",
