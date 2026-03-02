@@ -138,9 +138,10 @@ async function verificarPausa() {
   const resultado = document.getElementById("resultado");
 
   // Lê o mínimo configurado pelo professor
-  const minimoInput = parseFloat(document.getElementById("minimo").value);
-  if (isNaN(minimoInput) || minimoInput < 0) {
-    resultado.innerHTML = "⚠️ Por favor, defina uma pontuação mínima válida.";
+const maximoDia = parseFloat(document.getElementById("minimo").value);
+const minimoInput = maximoDia / 2;
+if (isNaN(maximoDia) || maximoDia < 0) {
+  resultado.innerHTML = "⚠️ Por favor, defina a pontuação máxima do dia.";
     resultado.className = "erro";
     resultado.style.display = "block";
     return;
